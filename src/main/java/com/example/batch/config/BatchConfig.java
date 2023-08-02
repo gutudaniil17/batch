@@ -4,6 +4,7 @@ import com.example.batch.entity.Person;
 import com.example.batch.listener.JobCompletionNotificationListener;
 import com.example.batch.processor.PersonItemProcessor;
 import com.example.batch.repository.PersonRepository;
+import com.example.batch.tasklet.PersonTasklet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -52,7 +53,7 @@ public class BatchConfig {
     }
 
     @Bean
-    public RepositoryItemWriter<Person> writer(CrudRepository<Person,Integer> repository){
+    public RepositoryItemWriter<Person> writer(CrudRepository<Person, Integer> repository) {
         return new RepositoryItemWriterBuilder<Person>()
                 .repository(repository)
                 .methodName("save")
@@ -61,7 +62,7 @@ public class BatchConfig {
 
 
     @Bean
-    public Step step1(JobRepository jobRepository, PlatformTransactionManager transactionManager,DataSource dataSource) {
+    public Step step1(JobRepository jobRepository, PlatformTransactionManager transactionManager, DataSource dataSource) {
         return new StepBuilder("step1", jobRepository)
                 .<Person, Person>chunk(20, transactionManager)
                 .reader(reader())
@@ -71,11 +72,19 @@ public class BatchConfig {
     }
 
     @Bean
-    public Job importPeopleJob(JobRepository jobRepository, JobCompletionNotificationListener listener, Step step1) {
+    public Step moveFile(JobRepository jobRepository, PlatformTransactionManager transactionManager, PersonTasklet tasklet) {
+        return new StepBuilder("moveFile", jobRepository)
+                .tasklet(tasklet, transactionManager)
+                .build();
+    }
+
+    @Bean
+    public Job importPeopleJob(JobRepository jobRepository, JobCompletionNotificationListener listener, Step step1, Step moveFile) {
         return new JobBuilder("importPeopleJob", jobRepository)
                 .incrementer(new RunIdIncrementer())
                 .listener(listener)
                 .flow(step1)
+                .next(moveFile)
                 .end().build();
     }
 }
